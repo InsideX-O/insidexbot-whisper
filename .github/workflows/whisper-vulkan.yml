@@ -1,0 +1,47 @@
+# Сборка whisper.cpp с Vulkan для Windows (видеокарты AMD, NVIDIA, Intel). У whisper.cpp нет готовой такой сборки, поэтому собираем сами.
+# НЕ ПРОВЕРЕНО: файл написан по документации whisper.cpp и GitHub Actions, ни разу не запускался.
+# Как использовать: положить в отдельный ОТКРЫТЫЙ репозиторий как .github/workflows/whisper-vulkan.yml (релизы закрытого репозитория агент скачать не сможет),
+# запустить вручную (Actions → Run workflow). В релизе появится whisper-vulkan-win-x64-<тег>.zip; имя репозитория передаётся агенту
+# переменной INSIDEXBOT_VULKAN_REPO=владелец/репозиторий (или voice.whisper.vulkan_repo в config.json), дальше: node insidex-agent.mjs voice setup
+name: whisper-vulkan
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Тег или ветка whisper.cpp (например v1.9.5)"
+        default: "v1.9.5"
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Исходники whisper.cpp
+        uses: actions/checkout@v4
+        with:
+          repository: ggml-org/whisper.cpp
+          ref: ${{ inputs.ref }}
+      - name: Vulkan SDK (компилятор шейдеров glslc)
+        shell: pwsh
+        run: |
+          $v = (Invoke-RestMethod https://vulkan.lunarg.com/sdk/latest/windows.json).windows
+          Invoke-WebRequest "https://sdk.lunarg.com/sdk/download/$v/windows/vulkansdk-windows-X64-$v.exe" -OutFile vulkan.exe
+          .\vulkan.exe --accept-licenses --default-answer --confirm-command install | Out-Null
+          "VULKAN_SDK=C:\VulkanSDK\$v" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "C:\VulkanSDK\$v\Bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+      - name: Сборка
+        shell: pwsh
+        run: |
+          cmake -B build -DGGML_VULKAN=1 -DWHISPER_BUILD_SERVER=ON -DWHISPER_BUILD_EXAMPLES=ON -DBUILD_SHARED_LIBS=ON -DGGML_AVX512=OFF
+          cmake --build build --config Release -j
+      - name: Архив
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory out | Out-Null
+          Get-ChildItem build -Recurse -Include whisper-server.exe,whisper-cli.exe,*.dll | Where-Object { $_.FullName -match "Release" } | Copy-Item -Destination out
+          Compress-Archive -Path out\* -DestinationPath "whisper-vulkan-win-x64-${{ inputs.ref }}.zip"
+      - name: Релиз
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: whisper-vulkan-${{ inputs.ref }}
+          files: whisper-vulkan-win-x64-${{ inputs.ref }}.zip
