@@ -1,0 +1,30 @@
+# Выпуск установщика XBot: файл лежит в коммите с тегом xbot-v<версия>; workflow делает релиз v<версия> с установщиком, manifest.json и сборкой Whisper (Vulkan).
+name: xbot-release
+on:
+  push:
+    tags: ["xbot-v*"]
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Файлы релиза
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VER="${GITHUB_REF_NAME#xbot-v}"
+          BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download"
+          curl -fsSL "$BASE/v0.7.0/manifest.json" -o old.json
+          curl -fsSL "$BASE/v0.3.1/whisper-vulkan-win-x64.zip" -o whisper-vulkan-win-x64.zip
+          SIZE=$(stat -c%s XBot-Voice-Setup.exe); SHA=$(sha256sum XBot-Voice-Setup.exe | cut -d' ' -f1)
+          python3 - "$VER" "$SIZE" "$SHA" "$BASE" <<'PY'
+          import json,sys,datetime
+          ver,size,sha,base=sys.argv[1:5]
+          m=json.load(open("old.json"))
+          m["generated"]=datetime.datetime.utcnow().isoformat()+"Z"
+          m["installer"]={"version":ver,"url":f"{base}/v{ver}/XBot-Voice-Setup.exe","size":int(size),"sha256":sha}
+          json.dump(m,open("manifest.json","w"),indent=2)
+          PY
+          gh release create "v$VER" XBot-Voice-Setup.exe manifest.json whisper-vulkan-win-x64.zip --latest --target "$GITHUB_SHA" --title "XBot $VER" --notes "XBot $VER: окно приложения в новом дизайне, новый значок, вход только через приложение."
