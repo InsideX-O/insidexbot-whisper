@@ -1,0 +1,31 @@
+# Release XBot: the installer lies in the tag commit xbot-v<version>; the workflow creates release v<version> with installer, manifest.json and Whisper (Vulkan).
+name: xbot-release
+on:
+  push:
+    tags: ["xbot-v*"]
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Make release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VER="${GITHUB_REF_NAME#xbot-v}"
+          BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download"
+          FILE="XBot-Setup-$VER.exe"
+          curl -fsSL "$BASE/v0.8.0/manifest.json" -o old.json
+          curl -fsSL "$BASE/v0.3.1/whisper-vulkan-win-x64.zip" -o whisper-vulkan-win-x64.zip
+          SIZE=$(stat -c%s "$FILE"); SHA=$(sha256sum "$FILE" | cut -d' ' -f1)
+          python3 - "$VER" "$SIZE" "$SHA" "$BASE" "$FILE" <<'PY'
+          import json,sys,datetime
+          ver,size,sha,base,fn=sys.argv[1:6]
+          m=json.load(open("old.json"))
+          m["generated"]=datetime.datetime.utcnow().isoformat()+"Z"
+          m["installer"]={"version":ver,"url":f"{base}/v{ver}/{fn}","size":int(size),"sha256":sha}
+          json.dump(m,open("manifest.json","w"),indent=2)
+          PY
+          gh release create "v$VER" "$FILE" manifest.json whisper-vulkan-win-x64.zip --latest --target "$GITHUB_SHA" --title "XBot $VER" --notes "XBot $VER: per-track recording modules, chat-like journal and phrases, browser overlay fix"
