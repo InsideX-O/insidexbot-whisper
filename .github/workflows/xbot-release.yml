@@ -17,7 +17,7 @@ jobs:
           VER="${GITHUB_REF_NAME#xbot-v}"
           BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download"
           FILE="XBot-Setup-$VER.exe"
-          curl -fsSL "$BASE/v0.9.18/manifest.json" -o old.json
+          curl -fsSL "$BASE/v0.9.19/manifest.json" -o old.json
           curl -fsSL "$BASE/v0.3.1/whisper-vulkan-win-x64.zip" -o whisper-vulkan-win-x64.zip
           SIZE=$(stat -c%s "$FILE"); SHA=$(sha256sum "$FILE" | cut -d' ' -f1)
           python3 - "$VER" "$SIZE" "$SHA" "$BASE" "$FILE" <<'PY'
@@ -28,4 +28,4 @@ jobs:
           m["installer"]={"version":ver,"url":f"{base}/v{ver}/{fn}","size":int(size),"sha256":sha}
           json.dump(m,open("manifest.json","w"),indent=2)
           PY
-          gh release create "v$VER" "$FILE" manifest.json whisper-vulkan-win-x64.zip --latest --target "$GITHUB_SHA" --title "XBot $VER" --notes "XBot $VER: live Twitch chat inside the app (badges, 7TV/BTTV/FFZ emotes, subs and raids), the site chat tab is now a log, GPU dropdown no longer transparent in the Vice City theme."
+          gh release create "v$VER" "$FILE" manifest.json whisper-vulkan-win-x64.zip --latest --target "$GITHUB_SHA" --title "XBot $VER" --notes "XBot $VER: YouTube and VK Video Live chats next to Twitch, local chat archive with monthly server backups, bot messages from the app, OBS widget inside the app, soft highlight of first messages."
